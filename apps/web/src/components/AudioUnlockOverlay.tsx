@@ -4,9 +4,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play } from 'lucide-react';
 import { useRoomStore } from '@/store/useRoomStore';
+import { triggerAudioUnlock } from './Player/YouTubePlayer';
 
 export function AudioUnlockOverlay() {
-    const { currentSong, isPlaying } = useRoomStore();
+    const { currentSong } = useRoomStore();
     const [isVisible, setIsVisible] = useState(false);
     const [hasUnlocked, setHasUnlocked] = useState(false);
 
@@ -18,30 +19,31 @@ export function AudioUnlockOverlay() {
     }, [currentSong, hasUnlocked]);
 
     const handleUnlock = useCallback(() => {
-        // Create and play a silent audio to unlock AudioContext
+        console.log('[AudioUnlock] User clicked unlock button');
+
+        // 1. Create and resume AudioContext (must be in click handler)
         const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
         audioContext.resume().then(() => {
             console.log('[AudioUnlock] AudioContext resumed');
         });
 
-        // Also create a dummy audio element and play it
+        // 2. Play a silent audio to unlock (must be in click handler)
         const audio = document.createElement('audio');
         audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
         audio.volume = 0.01;
-        audio.play().then(() => {
-            console.log('[AudioUnlock] Dummy audio played - browser audio unlocked');
-        }).catch(e => {
-            console.log('[AudioUnlock] Dummy audio failed, but click event should unlock:', e);
+        audio.play().catch(e => {
+            console.log('[AudioUnlock] Dummy audio failed:', e);
         });
 
-        // Slight delay to ensure browser acknowledges the interaction/audio resume
-        setTimeout(() => {
-            setIsVisible(false);
-            setHasUnlocked(true);
+        // 3. IMMEDIATELY trigger the YouTube player (must be in click handler!)
+        triggerAudioUnlock();
 
-            // Dispatch custom event for player to know audio is unlocked
-            window.dispatchEvent(new CustomEvent('audio:unlocked'));
-        }, 100);
+        // 4. Update UI state
+        setIsVisible(false);
+        setHasUnlocked(true);
+
+        // 5. Dispatch event for any other listeners
+        window.dispatchEvent(new CustomEvent('audio:unlocked'));
     }, []);
 
     return (

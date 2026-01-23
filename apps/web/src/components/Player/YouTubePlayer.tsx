@@ -7,13 +7,14 @@ import { useSocket } from '@/hooks/useSocket';
 import { usePlayerSync } from '@/hooks/usePlayerSync';
 
 // Dynamic import for SSR safety
-const ReactPlayer = dynamic(() => import('react-player'), {
+const ReactPlayer = dynamic(() => import('react-player/youtube'), {
     ssr: false,
 }) as any;
 
 export interface YouTubePlayerRef {
     seekTo: (seconds: number) => void;
     getCurrentTime: () => number;
+    triggerPlay: () => void;
 }
 
 interface YouTubePlayerProps {
@@ -23,6 +24,26 @@ interface YouTubePlayerProps {
     className?: string;
     /** Called when video ends */
     onEnded?: () => void;
+}
+
+// Global ref for direct access from overlay
+let globalPlayerRef: any = null;
+let globalSetAudioUnlocked: ((value: boolean) => void) | null = null;
+
+// Export function for overlay to call directly
+export function triggerAudioUnlock() {
+    console.log('[YouTubePlayer] triggerAudioUnlock called');
+    if (globalSetAudioUnlocked) {
+        globalSetAudioUnlocked(true);
+    }
+    // Directly trigger play on the YouTube player
+    if (globalPlayerRef?.getInternalPlayer) {
+        const internalPlayer = globalPlayerRef.getInternalPlayer();
+        if (internalPlayer?.playVideo) {
+            console.log('[YouTubePlayer] Calling playVideo directly');
+            internalPlayer.playVideo();
+        }
+    }
 }
 
 export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
@@ -35,22 +56,25 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
 
         const [isAudioUnlocked, setIsAudioUnlocked] = useState(false);
 
+        // Store refs globally for overlay access
         useEffect(() => {
-            // No initial check from storage - mandatory interaction required per session load
+            globalPlayerRef = playerRef.current;
+            globalSetAudioUnlocked = setIsAudioUnlocked;
+            return () => {
+                globalPlayerRef = null;
+                globalSetAudioUnlocked = null;
+            };
+        }, [playerRef.current]);
 
-
+        useEffect(() => {
             const handleUnlock = () => {
                 console.log('[YouTubePlayer] Audio unlocked event received');
                 setIsAudioUnlocked(true);
-                // Force a re-sync or play attempt
-                if (isPlaying) {
-                    playerRef.current?.getInternalPlayer()?.playVideo();
-                }
             };
 
             window.addEventListener('audio:unlocked', handleUnlock);
             return () => window.removeEventListener('audio:unlocked', handleUnlock);
-        }, [isPlaying]);
+        }, []);
 
         // Expose imperative methods
         useImperativeHandle(ref, () => ({
@@ -60,6 +84,9 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
             getCurrentTime: () => {
                 return playerRef.current?.getCurrentTime() || 0;
             },
+            triggerPlay: () => {
+                playerRef.current?.getInternalPlayer()?.playVideo();
+            },
         }));
 
         const videoUrl = currentSong ? `https://www.youtube.com/watch?v=${currentSong.videoId}` : '';
@@ -67,6 +94,8 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
         const handleReady = useCallback(() => {
             console.log('[YouTubePlayer] Player ready');
             setIsReady(true);
+            // Update global ref when player is ready
+            globalPlayerRef = playerRef.current;
         }, []);
 
         const handlePlay = useCallback(() => {
@@ -123,14 +152,14 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
                 videoUrl,
                 isPlaying,
                 isReady,
+                isAudioUnlocked,
                 volume,
                 currentSongId: currentSong?.videoId
             });
-        }, [videoUrl, isPlaying, isReady, volume, currentSong]);
+        }, [videoUrl, isPlaying, isReady, isAudioUnlocked, volume, currentSong]);
 
-        // Don't render the player AT ALL until audio is unlocked AND we have a song
-        // This prevents browser from blocking/throttling the iframe
-        if (!isAudioUnlocked || !currentSong) {
+        // Don't render if no song
+        if (!currentSong) {
             return null;
         }
 
@@ -142,8 +171,8 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
                 style={{
                     bottom: 0,
                     right: 0,
-                    width: 1,
-                    height: 1,
+                    width: 2,
+                    height: 2,
                     opacity: 0.001,
                     pointerEvents: 'none',
                     zIndex: -1,
@@ -153,10 +182,10 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
                 <ReactPlayer
                     ref={playerRef}
                     url={videoUrl}
-                    playing={isPlaying}
+                    playing={isPlaying && isAudioUnlocked}
                     controls={false}
-                    width="1px"
-                    height="1px"
+                    width="2px"
+                    height="2px"
                     onReady={handleReady}
                     onPlay={handlePlay}
                     onPause={handlePause}
@@ -172,19 +201,17 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
                     playsinline={true}
                     pip={false}
                     config={{
-                        youtube: {
-                            playerVars: {
-                                modestbranding: 1,
-                                rel: 0,
-                                showinfo: 0,
-                                controls: 0,
-                                disablekb: 1,
-                                fs: 0,
-                                iv_load_policy: 3,
-                                playsinline: 1,
-                                enablejsapi: 1,
-                                origin: typeof window !== 'undefined' ? window.location.origin : '',
-                            },
+                        playerVars: {
+                            modestbranding: 1,
+                            rel: 0,
+                            showinfo: 0,
+                            controls: 0,
+                            disablekb: 1,
+                            fs: 0,
+                            iv_load_policy: 3,
+                            playsinline: 1,
+                            enablejsapi: 1,
+                            origin: typeof window !== 'undefined' ? window.location.origin : '',
                         },
                     }}
                 />
