@@ -7,7 +7,7 @@ import { useSocket } from '@/hooks/useSocket';
 import { usePlayerSync } from '@/hooks/usePlayerSync';
 
 // Dynamic import for SSR safety
-const ReactPlayer = dynamic(() => import('react-player/youtube'), {
+const ReactPlayer = dynamic(() => import('react-player'), {
     ssr: false,
 }) as any;
 
@@ -164,28 +164,28 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
         }
 
         return (
-            // Audio Player - positioned on-screen but visually hidden
-            // Must be in viewport for browsers to allow audio playback
+            // Audio Player - VISIBLE for debugging, positioned bottom-right
+            // DEBUG: Making visible to ensure iframe loads properly
             <div
                 className={`fixed ${className}`}
                 style={{
-                    bottom: 0,
-                    right: 0,
-                    width: 2,
-                    height: 2,
-                    opacity: 0.001,
-                    pointerEvents: 'none',
-                    zIndex: -1,
-                    overflow: 'hidden'
+                    bottom: 16,
+                    right: 16,
+                    width: 320,
+                    height: 180,
+                    borderRadius: 12,
+                    overflow: 'hidden',
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+                    zIndex: 50,
                 }}
             >
                 <ReactPlayer
                     ref={playerRef}
                     url={videoUrl}
                     playing={isPlaying && isAudioUnlocked}
-                    controls={false}
-                    width="2px"
-                    height="2px"
+                    controls={true}
+                    width="100%"
+                    height="100%"
                     onReady={handleReady}
                     onPlay={handlePlay}
                     onPause={handlePause}
