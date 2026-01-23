@@ -222,20 +222,21 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
         console.log('[YouTubePlayer] Rendering player for:', currentSong.videoId);
 
         return (
-            // Player container - positioned on top but transparent
-            // Must have positive z-index to be "seen" by browser resource scheduler
+            // DEBUG MODE: Player is forced VISIBLE to verify initialization.
+            // If this works, the previous "hiding" strategies were too aggressive.
             <div
                 className={`fixed ${className}`}
                 style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: '100%',
-                    opacity: 0.001,
-                    pointerEvents: 'none',
-                    zIndex: 1, // Must be positive to be above body background
-                    overflow: 'hidden',
+                    position: 'fixed',
+                    bottom: '20px',
+                    right: '20px',
+                    width: '120px',
+                    height: '90px',
+                    opacity: 1, // Fully visible
+                    zIndex: 9999, // On top of everything
+                    pointerEvents: 'auto', // Interactive
+                    border: '2px solid red', // Debug border
+                    background: 'black',
                 }}
             >
                 <ReactPlayer
