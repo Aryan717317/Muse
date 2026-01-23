@@ -56,8 +56,20 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
 
         const [isAudioUnlocked, setIsAudioUnlocked] = useState(false);
 
+        // DEBUG: Log when component mounts and currentSong changes
+        useEffect(() => {
+            console.log('[YouTubePlayer] Component mounted');
+            console.log('[YouTubePlayer] currentSong:', currentSong);
+            return () => console.log('[YouTubePlayer] Component unmounting');
+        }, []);
+
+        useEffect(() => {
+            console.log('[YouTubePlayer] currentSong changed:', currentSong);
+        }, [currentSong]);
+
         // Store refs globally for overlay access
         useEffect(() => {
+            console.log('[YouTubePlayer] Updating global refs, playerRef.current:', playerRef.current);
             globalPlayerRef = playerRef.current;
             globalSetAudioUnlocked = setIsAudioUnlocked;
             return () => {
