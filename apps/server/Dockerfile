@@ -4,16 +4,18 @@ FROM node:18-alpine AS base
 # Builder stage
 FROM base AS builder
 WORKDIR /app
-COPY package*.json ./
-COPY apps/server/package*.json ./apps/server/
-COPY packages/types/package*.json ./packages/types/
-# Install dependencies (including workspace)
-RUN npm ci
 
-# Copy source
-COPY . .
-# Build server & types
-RUN npm run build -w apps/server
+# Copy package.json from the server directory
+COPY apps/server/package*.json ./
+
+# Install dependencies (ignoring workspace for now since it's a standalone build)
+RUN npm install
+
+# Copy the server source code
+COPY apps/server/ .
+
+# Build the server
+RUN npm run build
 
 # Runner stage
 FROM base AS runner
@@ -22,9 +24,7 @@ ENV NODE_ENV=production
 
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/apps/server/dist ./apps/server/dist
-COPY --from=builder /app/apps/server/package*.json ./apps/server/
+COPY --from=builder /app/dist ./dist
 
-WORKDIR /app/apps/server
 EXPOSE 3001
 CMD ["npm", "start"]
