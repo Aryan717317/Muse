@@ -1,0 +1,44 @@
+services:
+  # Web Service (Next.js)
+  - type: web
+    name: muse-web
+    env: docker
+    dockerfilePath: apps/web/Dockerfile
+    dockerContext: .
+    plan: free
+    numInstances: 1
+    region: oregon
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_SOCKET_URL
+        fromService:
+          type: web
+          name: muse-server
+          property: host
+      - key: PORT
+        value: 3000
+
+  # Socket Server (Node.js)
+  - type: web
+    name: muse-server
+    env: docker
+    dockerfilePath: apps/server/Dockerfile
+    dockerContext: .
+    plan: free
+    numInstances: 1
+    region: oregon
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: CLIENT_URL
+        fromService:
+          type: web
+          name: muse-web
+          property: url
+      - key: REDIS_URL
+        sync: false
+      - key: REDIS_TOKEN
+        sync: false
