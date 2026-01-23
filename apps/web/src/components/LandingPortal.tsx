@@ -167,7 +167,7 @@ export function LandingPortal({ onEnter }: LandingPortalProps) {
                                 <input
                                     type="text"
                                     value={roomId}
-                                    onChange={(e) => setRoomId(e.target.value.toUpperCase())}
+                                    onChange={(e) => setRoomId(e.target.value)}
                                     placeholder="Enter room code"
                                     className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/30 focus:border-cyan-400/50 focus:outline-none focus:ring-2 focus:ring-cyan-400/20"
                                 />
