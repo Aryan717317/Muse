@@ -14,79 +14,30 @@ const ReactPlayer = dynamic(() => import('react-player'), {
 export interface YouTubePlayerRef {
     seekTo: (seconds: number) => void;
     getCurrentTime: () => number;
-    triggerPlay: () => void;
 }
 
 interface YouTubePlayerProps {
-    /** Whether to show as ambient background (blurred, low opacity) */
-    ambient?: boolean;
-    /** Additional CSS classes */
     className?: string;
-    /** Called when video ends */
     onEnded?: () => void;
 }
 
-// Global ref for direct access from overlay
-let globalPlayerRef: any = null;
-let globalSetAudioUnlocked: ((value: boolean) => void) | null = null;
-
-// Export function for overlay to call directly
-export function triggerAudioUnlock() {
-    console.log('[YouTubePlayer] triggerAudioUnlock called');
-    if (globalSetAudioUnlocked) {
-        globalSetAudioUnlocked(true);
-    }
-    // Directly trigger play on the YouTube player
-    if (globalPlayerRef?.getInternalPlayer) {
-        const internalPlayer = globalPlayerRef.getInternalPlayer();
-        if (internalPlayer?.playVideo) {
-            console.log('[YouTubePlayer] Calling playVideo directly');
-            internalPlayer.playVideo();
-        }
-    }
-}
-
 export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
-    ({ ambient = false, className = '', onEnded }, ref) => {
+    ({ className = '', onEnded }, ref) => {
         const playerRef = useRef<any>(null);
         const { currentSong, isPlaying, isHost, collaborativeControls, volume } = useRoomStore();
         const { play, pause, skip } = useSocket();
         const [isReady, setIsReady] = useState(false);
         const { handleSyncRequest } = usePlayerSync(playerRef, isReady);
 
-        const [isAudioUnlocked, setIsAudioUnlocked] = useState(false);
+        // Internal playing state - mirrors isPlaying prop (like the working code)
+        const [internalPlaying, setInternalPlaying] = useState(false);
+        const wakeLockRef = useRef<any>(null);
 
-        // DEBUG: Log when component mounts and currentSong changes
+        // Sync internal playing state with store
         useEffect(() => {
-            console.log('[YouTubePlayer] Component mounted');
-            console.log('[YouTubePlayer] currentSong:', currentSong);
-            return () => console.log('[YouTubePlayer] Component unmounting');
-        }, []);
-
-        useEffect(() => {
-            console.log('[YouTubePlayer] currentSong changed:', currentSong);
-        }, [currentSong]);
-
-        // Store refs globally for overlay access
-        useEffect(() => {
-            console.log('[YouTubePlayer] Updating global refs, playerRef.current:', playerRef.current);
-            globalPlayerRef = playerRef.current;
-            globalSetAudioUnlocked = setIsAudioUnlocked;
-            return () => {
-                globalPlayerRef = null;
-                globalSetAudioUnlocked = null;
-            };
-        }, [playerRef.current]);
-
-        useEffect(() => {
-            const handleUnlock = () => {
-                console.log('[YouTubePlayer] Audio unlocked event received');
-                setIsAudioUnlocked(true);
-            };
-
-            window.addEventListener('audio:unlocked', handleUnlock);
-            return () => window.removeEventListener('audio:unlocked', handleUnlock);
-        }, []);
+            console.log('[YouTubePlayer] Syncing internalPlaying with isPlaying:', isPlaying);
+            setInternalPlaying(isPlaying);
+        }, [isPlaying]);
 
         // Expose imperative methods
         useImperativeHandle(ref, () => ({
@@ -96,18 +47,47 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
             getCurrentTime: () => {
                 return playerRef.current?.getCurrentTime() || 0;
             },
-            triggerPlay: () => {
-                playerRef.current?.getInternalPlayer()?.playVideo();
-            },
         }));
 
         const videoUrl = currentSong ? `https://www.youtube.com/watch?v=${currentSong.videoId}` : '';
 
+        // Wake lock to prevent screen from sleeping (like the working code)
+        useEffect(() => {
+            (async () => {
+                if ('wakeLock' in navigator && internalPlaying) {
+                    try {
+                        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+                        console.log('[WakeLock] Screen wake lock acquired');
+                    } catch (e) {
+                        console.log('[WakeLock] Failed to acquire:', e);
+                    }
+                }
+            })();
+            return () => {
+                if (wakeLockRef.current) {
+                    wakeLockRef.current.release();
+                    wakeLockRef.current = null;
+                }
+            };
+        }, [internalPlaying]);
+
+        // Resume playback when tab becomes visible again (like the working code)
+        useEffect(() => {
+            const handleVisibilityChange = () => {
+                if (document.hidden && internalPlaying && playerRef.current) {
+                    const internalPlayer = playerRef.current.getInternalPlayer();
+                    if (internalPlayer && internalPlayer.playVideo) {
+                        setTimeout(() => internalPlayer.playVideo(), 100);
+                    }
+                }
+            };
+            document.addEventListener('visibilitychange', handleVisibilityChange);
+            return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+        }, [internalPlaying]);
+
         const handleReady = useCallback(() => {
             console.log('[YouTubePlayer] Player ready');
             setIsReady(true);
-            // Update global ref when player is ready
-            globalPlayerRef = playerRef.current;
         }, []);
 
         const handlePlay = useCallback(() => {
@@ -158,26 +138,28 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
             return () => window.removeEventListener('playback:sync' as any, handleSync);
         }, [isHost, handleSyncRequest]);
 
-        // Debug: Log when currentSong or isPlaying changes
+        // Debug logging
         useEffect(() => {
             console.log('[YouTubePlayer] State:', {
                 videoUrl,
                 isPlaying,
+                internalPlaying,
                 isReady,
-                isAudioUnlocked,
                 volume,
                 currentSongId: currentSong?.videoId
             });
-        }, [videoUrl, isPlaying, isReady, isAudioUnlocked, volume, currentSong]);
+        }, [videoUrl, isPlaying, internalPlaying, isReady, volume, currentSong]);
 
         // Don't render if no song
         if (!currentSong) {
+            console.log('[YouTubePlayer] No currentSong, not rendering player');
             return null;
         }
 
+        console.log('[YouTubePlayer] Rendering player for:', currentSong.videoId);
+
         return (
-            // Audio Player - VISIBLE for debugging, positioned bottom-right
-            // DEBUG: Making visible to ensure iframe loads properly
+            // Player container - positioned on-screen but visually hidden
             <div
                 className={`fixed ${className}`}
                 style={{
@@ -194,7 +176,7 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
                 <ReactPlayer
                     ref={playerRef}
                     url={videoUrl}
-                    playing={isPlaying && isAudioUnlocked}
+                    playing={internalPlaying}
                     controls={true}
                     width="100%"
                     height="100%"
@@ -206,24 +188,25 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
                     onDuration={handleDuration}
                     onError={handleError}
                     onBuffer={() => console.log('[YouTubePlayer] Buffering...')}
-                    onBufferEnd={() => console.log('[YouTubePlayer] Buffer ended, playing')}
+                    onBufferEnd={() => console.log('[YouTubePlayer] Buffer ended')}
                     progressInterval={500}
                     volume={volume}
                     muted={false}
                     playsinline={true}
                     pip={false}
                     config={{
-                        playerVars: {
-                            modestbranding: 1,
-                            rel: 0,
-                            showinfo: 0,
-                            controls: 0,
-                            disablekb: 1,
-                            fs: 0,
-                            iv_load_policy: 3,
-                            playsinline: 1,
-                            enablejsapi: 1,
-                            origin: typeof window !== 'undefined' ? window.location.origin : '',
+                        youtube: {
+                            playerVars: {
+                                modestbranding: 1,
+                                rel: 0,
+                                showinfo: 0,
+                                controls: 0,
+                                disablekb: 1,
+                                fs: 0,
+                                iv_load_policy: 3,
+                                playsinline: 1,
+                                enablejsapi: 1,
+                            },
                         },
                     }}
                 />
@@ -233,3 +216,8 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
 );
 
 YouTubePlayer.displayName = 'YouTubePlayer';
+
+// Export dummy function for backward compatibility
+export function triggerAudioUnlock() {
+    console.log('[YouTubePlayer] triggerAudioUnlock called (no-op in new version)');
+}
