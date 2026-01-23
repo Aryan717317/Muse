@@ -44,8 +44,8 @@ export async function GET(request: NextRequest) {
 
     // Return error if no API key is configured
     if (!YOUTUBE_API_KEY) {
-        console.warn('YouTube API key not configured');
-        return NextResponse.json({ results: [] });
+        console.error('[Search API] Missing YOUTUBE_API_KEY env var');
+        return NextResponse.json({ error: 'Server configuration error: Missing API Key' }, { status: 500 });
     }
 
     try {
@@ -63,7 +63,13 @@ export async function GET(request: NextRequest) {
         );
 
         if (!searchResponse.ok) {
-            throw new Error(`YouTube search failed: ${searchResponse.status}`);
+            const errorText = await searchResponse.text();
+            console.error('[Search API] YouTube API Error:', {
+                status: searchResponse.status,
+                statusText: searchResponse.statusText,
+                body: errorText
+            });
+            throw new Error(`YouTube API returned ${searchResponse.status}: ${errorText}`);
         }
 
         const searchData = await searchResponse.json();
@@ -103,10 +109,18 @@ export async function GET(request: NextRequest) {
         }));
 
         return NextResponse.json({ results });
-    } catch (error) {
-        console.error('YouTube API error:', error);
+    } catch (error: any) {
+        console.error('[Search API] Error details:', {
+            message: error.message,
+            stack: error.stack,
+            cause: error.cause
+        });
+
         return NextResponse.json(
-            { error: 'Failed to search YouTube' },
+            {
+                error: 'Failed to search YouTube',
+                details: error.message
+            },
             { status: 500 }
         );
     }
