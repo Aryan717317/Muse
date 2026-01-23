@@ -12,12 +12,7 @@ export function AudioUnlockOverlay() {
 
     useEffect(() => {
         // Show overlay when there's a song but user hasn't unlocked audio yet
-        const wasUnlocked = sessionStorage.getItem('audio_unlocked') === 'true';
-        if (wasUnlocked) {
-            setHasUnlocked(true);
-        }
-
-        if (currentSong && !hasUnlocked && !wasUnlocked) {
+        if (currentSong && !hasUnlocked) {
             setIsVisible(true);
         }
     }, [currentSong, hasUnlocked]);
@@ -41,7 +36,6 @@ export function AudioUnlockOverlay() {
 
         setIsVisible(false);
         setHasUnlocked(true);
-        sessionStorage.setItem('audio_unlocked', 'true');
 
         // Dispatch custom event for player to know audio is unlocked
         window.dispatchEvent(new CustomEvent('audio:unlocked'));

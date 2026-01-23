@@ -36,10 +36,8 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
         const [isAudioUnlocked, setIsAudioUnlocked] = useState(false);
 
         useEffect(() => {
-            // Check initial state
-            if (typeof window !== 'undefined' && sessionStorage.getItem('audio_unlocked') === 'true') {
-                setIsAudioUnlocked(true);
-            }
+            // No initial check from storage - mandatory interaction required per session load
+
 
             const handleUnlock = () => {
                 console.log('[YouTubePlayer] Audio unlocked event received');
