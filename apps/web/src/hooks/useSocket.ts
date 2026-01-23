@@ -23,7 +23,8 @@ const setupListeners = (s: Socket) => {
     const store = useRoomStore.getState();
 
     s.on('connect', () => {
-        console.log('Connected to server');
+        console.log('[Socket] Connected to server:', SOCKET_URL);
+        console.log('[Socket] Socket ID:', s.id);
         store.setConnected(true);
     });
 
