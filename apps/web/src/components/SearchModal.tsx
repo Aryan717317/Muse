@@ -25,6 +25,7 @@ export function SearchModal() {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<SearchResult[]>([]);
     const [isSearching, setIsSearching] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
     const { addToQueue } = useSocket();
     const inputRef = useRef<HTMLInputElement>(null);
@@ -37,38 +38,38 @@ export function SearchModal() {
         } else {
             setQuery('');
             setResults([]);
+            setError(null);
         }
     }, [isSearchOpen]);
 
-    // Handle ESC to close
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && isSearchOpen) {
-                setSearchOpen(false);
-            }
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isSearchOpen, setSearchOpen]);
+    // ... (keep useEffect for escape)
 
     // Debounced search
     const handleSearch = useCallback(async (searchQuery: string) => {
         if (!searchQuery.trim()) {
             setResults([]);
+            setError(null);
             return;
         }
 
         setIsSearching(true);
+        setError(null);
 
         try {
             const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`);
             const data = await response.json();
 
+            if (!response.ok) {
+                throw new Error(data.details || data.error || 'Search failed');
+            }
+
             if (data.results) {
                 setResults(data.results);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Search error:', error);
+            setError(error.message || 'Failed to search');
+            setResults([]);
         } finally {
             setIsSearching(false);
         }
@@ -83,6 +84,7 @@ export function SearchModal() {
             }, 300);
         } else {
             setResults([]);
+            setError(null);
         }
         return () => {
             if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -160,7 +162,14 @@ export function SearchModal() {
                                 </div>
                             )}
 
-                            {results.length === 0 && query && !isSearching && (
+                            {error && (
+                                <div className="flex h-40 flex-col items-center justify-center text-red-400 px-4 text-center">
+                                    <p className="font-medium">Search Failed</p>
+                                    <p className="text-sm opacity-80 mt-1">{error}</p>
+                                </div>
+                            )}
+
+                            {results.length === 0 && query && !isSearching && !error && (
                                 <div className="flex h-40 items-center justify-center text-white/30">
                                     <p>No results found</p>
                                 </div>
