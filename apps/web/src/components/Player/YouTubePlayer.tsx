@@ -101,19 +101,43 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
             }
         }, [isPlaying]);
 
+        // Cooldown ref to prevent initial pause events from stopping playback
+        const ignorePauseRef = useRef(false);
+
+        // When song changes or play starts, ignore pauses for 2 seconds
+        useEffect(() => {
+            if (isPlaying) {
+                console.log('[YouTubePlayer] Ignoring pauses for 2s (playback start)');
+                ignorePauseRef.current = true;
+                const timer = setTimeout(() => {
+                    ignorePauseRef.current = false;
+                    console.log('[YouTubePlayer] Pause protection ended');
+                }, 2000);
+                return () => clearTimeout(timer);
+            }
+        }, [isPlaying, currentSong]);
+
         const handlePlay = useCallback(() => {
             console.log('[YouTubePlayer] onPlay triggered');
             if (isHost || collaborativeControls) {
-                play();
+                // If we are already playing in store, don't spam
+                if (!isPlaying) {
+                    play();
+                }
             }
-        }, [isHost, collaborativeControls, play]);
+        }, [isHost, collaborativeControls, play, isPlaying]);
 
         const handlePause = useCallback(() => {
-            console.log('[YouTubePlayer] onPause triggered');
+            console.log('[YouTubePlayer] onPause triggered. Ignore?', ignorePauseRef.current);
+            if (ignorePauseRef.current) return;
+
             if (isHost || collaborativeControls) {
-                pause();
+                // If we are already paused in store, don't spam
+                if (isPlaying) {
+                    pause();
+                }
             }
-        }, [isHost, collaborativeControls, pause]);
+        }, [isHost, collaborativeControls, pause, isPlaying]);
 
         const handleEnded = useCallback(() => {
             console.log('[YouTubePlayer] Video ended');
@@ -170,25 +194,26 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
         console.log('[YouTubePlayer] Rendering player for:', currentSong.videoId);
 
         return (
-            // Player container - positioned on-screen but visually hidden
+            // Player container - positioned on-screen but visually hidden (1x1 pixel)
+            // We keep it "visible" to the browser but invisible to the user
             <div
                 className={`fixed ${className}`}
                 style={{
-                    bottom: 16,
-                    right: 16,
-                    width: 320,
-                    height: 180,
-                    borderRadius: 12,
+                    bottom: 0,
+                    right: 0,
+                    width: 1,
+                    height: 1,
+                    opacity: 0.001,
+                    pointerEvents: 'none',
+                    zIndex: -1,
                     overflow: 'hidden',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
-                    zIndex: 50,
                 }}
             >
                 <ReactPlayer
                     ref={playerRef}
                     url={videoUrl}
                     playing={internalPlaying}
-                    controls={true}
+                    controls={false}
                     width="100%"
                     height="100%"
                     onReady={handleReady}
@@ -217,6 +242,7 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
                                 iv_load_policy: 3,
                                 playsinline: 1,
                                 enablejsapi: 1,
+                                origin: typeof window !== 'undefined' ? window.location.origin : '',
                             },
                         },
                     }}
