@@ -226,13 +226,13 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
                 className={`fixed ${className}`}
                 style={{
                     position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: '100%',
-                    opacity: 0.001,
-                    pointerEvents: 'none',
-                    zIndex: 1,
+                    bottom: 0,
+                    right: 0,
+                    width: '1px',
+                    height: '1px',
+                    opacity: 1, // Must be 1 to count as "visible"
+                    pointerEvents: 'auto',
+                    zIndex: 50, // High enough to be "foreground" for browser, but small enough to be unnoticed
                     overflow: 'hidden',
                 }}
             >
