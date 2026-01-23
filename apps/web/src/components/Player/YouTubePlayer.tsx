@@ -230,8 +230,8 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
                     position: 'fixed',
                     bottom: '20px',
                     right: '20px',
-                    width: '120px',
-                    height: '90px',
+                    width: '320px',
+                    height: '180px',
                     opacity: 1, // Fully visible
                     zIndex: 9999, // On top of everything
                     pointerEvents: 'auto', // Interactive
@@ -243,7 +243,7 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
                     ref={playerRef}
                     url={videoUrl}
                     playing={internalPlaying}
-                    controls={false}
+                    controls={true} // Enabled native controls
                     width="100%"
                     height="100%"
                     onReady={handleReady}
@@ -265,9 +265,9 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
                             playerVars: {
                                 modestbranding: 1,
                                 rel: 0,
-                                showinfo: 0,
-                                controls: 0,
-                                disablekb: 1,
+                                showinfo: 1,
+                                controls: 1, // Show controls
+                                disablekb: 0,
                                 fs: 0,
                                 iv_load_policy: 3,
                                 playsinline: 1,
