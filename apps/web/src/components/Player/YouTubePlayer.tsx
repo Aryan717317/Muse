@@ -33,11 +33,17 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
         const [internalPlaying, setInternalPlaying] = useState(false);
         const wakeLockRef = useRef<any>(null);
 
-        // Sync internal playing state with store
+        // Sync internal playing state with store - BUT only if ready
         useEffect(() => {
-            console.log('[YouTubePlayer] Syncing internalPlaying with isPlaying:', isPlaying);
-            setInternalPlaying(isPlaying);
-        }, [isPlaying]);
+            console.log('[YouTubePlayer] Syncing internalPlaying. isPlaying:', isPlaying, 'isReady:', isReady);
+            // Only allow playing if the player is ready
+            if (isReady) {
+                setInternalPlaying(isPlaying);
+            } else if (isPlaying) {
+                // Store pending play for when ready
+                console.log('[YouTubePlayer] Player not ready yet, will play when ready');
+            }
+        }, [isPlaying, isReady]);
 
         // Expose imperative methods
         useImperativeHandle(ref, () => ({
@@ -86,9 +92,14 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
         }, [internalPlaying]);
 
         const handleReady = useCallback(() => {
-            console.log('[YouTubePlayer] Player ready');
+            console.log('[YouTubePlayer] Player ready! isPlaying from store:', isPlaying);
             setIsReady(true);
-        }, []);
+            // If the store says we should be playing, start now
+            if (isPlaying) {
+                console.log('[YouTubePlayer] Starting playback now that player is ready');
+                setInternalPlaying(true);
+            }
+        }, [isPlaying]);
 
         const handlePlay = useCallback(() => {
             console.log('[YouTubePlayer] onPlay triggered');
