@@ -33,6 +33,27 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
         const [isReady, setIsReady] = useState(false);
         const { handleSyncRequest } = usePlayerSync(playerRef, isReady);
 
+        const [isAudioUnlocked, setIsAudioUnlocked] = useState(false);
+
+        useEffect(() => {
+            // Check initial state
+            if (typeof window !== 'undefined' && sessionStorage.getItem('audio_unlocked') === 'true') {
+                setIsAudioUnlocked(true);
+            }
+
+            const handleUnlock = () => {
+                console.log('[YouTubePlayer] Audio unlocked event received');
+                setIsAudioUnlocked(true);
+                // Force a re-sync or play attempt
+                if (isPlaying) {
+                    playerRef.current?.getInternalPlayer()?.playVideo();
+                }
+            };
+
+            window.addEventListener('audio:unlocked', handleUnlock);
+            return () => window.removeEventListener('audio:unlocked', handleUnlock);
+        }, [isPlaying]);
+
         // Expose imperative methods
         useImperativeHandle(ref, () => ({
             seekTo: (seconds: number) => {
@@ -129,7 +150,7 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
                 <ReactPlayer
                     ref={playerRef}
                     url={videoUrl}
-                    playing={isPlaying}
+                    playing={isPlaying && isAudioUnlocked}
                     controls={false}
                     width="200px"
                     height="200px"
