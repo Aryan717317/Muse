@@ -222,34 +222,57 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
         console.log('[YouTubePlayer] Rendering player for:', currentSong.videoId);
 
         return (
-            // DEBUG MODE: Player is forced VISIBLE to verify initialization.
-            // If this works, the previous "hiding" strategies were too aggressive.
             <div
                 className={`fixed ${className}`}
                 style={{
                     position: 'fixed',
-                    bottom: '20px',
-                    right: '20px',
-                    width: '320px',
-                    height: '180px',
-                    opacity: 1, // Fully visible
-                    zIndex: 9999, // On top of everything
-                    pointerEvents: 'auto', // Interactive
-                    border: '2px solid red', // Debug border
-                    background: 'black',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    opacity: 0.001,
+                    pointerEvents: 'none',
+                    zIndex: 1,
+                    overflow: 'hidden',
                 }}
             >
-                {/* RAW IFRAME DEBUGGING */}
-                {/* Replacing ReactPlayer to rule out library issues */}
-                <iframe
+                <ReactPlayer
+                    ref={playerRef}
+                    url={videoUrl}
+                    playing={internalPlaying}
+                    controls={false}
                     width="100%"
                     height="100%"
-                    src={`https://www.youtube.com/embed/${currentSong.videoId}?autoplay=1&controls=1&enablejsapi=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
-                    title="YouTube video player"
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    style={{ pointerEvents: 'auto' }}
+                    onReady={handleReady}
+                    onPlay={handlePlay}
+                    onPause={handlePause}
+                    onEnded={handleEnded}
+                    onProgress={handleProgress}
+                    onDuration={handleDuration}
+                    onError={(e: any) => console.error('[YouTubePlayer] PLAYER ERROR:', e)}
+                    onBuffer={() => console.log('[YouTubePlayer] Buffering...')}
+                    onBufferEnd={() => console.log('[YouTubePlayer] Buffer ended')}
+                    progressInterval={500}
+                    volume={volume}
+                    muted={false}
+                    playsinline={true}
+                    pip={false}
+                    config={{
+                        youtube: {
+                            playerVars: {
+                                modestbranding: 1,
+                                rel: 0,
+                                showinfo: 0,
+                                controls: 0,
+                                disablekb: 1,
+                                fs: 0,
+                                iv_load_policy: 3,
+                                playsinline: 1,
+                                enablejsapi: 1,
+                                origin: typeof window !== 'undefined' ? window.location.origin : '',
+                            },
+                        },
+                    }}
                 />
             </div>
         );
