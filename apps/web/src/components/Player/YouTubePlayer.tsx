@@ -222,20 +222,19 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
         console.log('[YouTubePlayer] Rendering player for:', currentSong.videoId);
 
         return (
-            // Player container - forcing it to be "visible" to the browser
-            // by making it fullscreen but behind everything and transparent.
-            // This prevents browser background throttling which kills audio/init.
+            // Player container - positioned on top but transparent
+            // Must have positive z-index to be "seen" by browser resource scheduler
             <div
                 className={`fixed ${className}`}
                 style={{
-                    position: 'fixed',
+                    position: 'absolute',
                     top: 0,
                     left: 0,
-                    width: '100vw',
-                    height: '100vh',
-                    opacity: 0.01,
+                    width: '100%',
+                    height: '100%',
+                    opacity: 0.001,
                     pointerEvents: 'none',
-                    zIndex: -9999,
+                    zIndex: 1, // Must be positive to be above body background
                     overflow: 'hidden',
                 }}
             >
