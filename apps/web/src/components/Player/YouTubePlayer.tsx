@@ -128,30 +128,35 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
             });
         }, [videoUrl, isPlaying, isReady, volume, currentSong]);
 
-        if (!currentSong) {
+        // Don't render the player AT ALL until audio is unlocked AND we have a song
+        // This prevents browser from blocking/throttling the iframe
+        if (!isAudioUnlocked || !currentSong) {
             return null;
         }
 
         return (
-            // Audio Player - positioned offscreen with minimum size for audio to work
-            // Browsers throttle/mute audio for tiny (1x1) players, need at least 200x200
+            // Audio Player - positioned on-screen but visually hidden
+            // Must be in viewport for browsers to allow audio playback
             <div
-                className={`fixed pointer-events-none ${className}`}
+                className={`fixed ${className}`}
                 style={{
-                    left: '-9999px',
-                    top: '-9999px',
-                    width: 200,
-                    height: 200,
+                    bottom: 0,
+                    right: 0,
+                    width: 1,
+                    height: 1,
+                    opacity: 0.001,
+                    pointerEvents: 'none',
+                    zIndex: -1,
                     overflow: 'hidden'
                 }}
             >
                 <ReactPlayer
                     ref={playerRef}
                     url={videoUrl}
-                    playing={isPlaying && isAudioUnlocked}
+                    playing={isPlaying}
                     controls={false}
-                    width="200px"
-                    height="200px"
+                    width="1px"
+                    height="1px"
                     onReady={handleReady}
                     onPlay={handlePlay}
                     onPause={handlePause}
@@ -159,6 +164,8 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
                     onProgress={handleProgress}
                     onDuration={handleDuration}
                     onError={handleError}
+                    onBuffer={() => console.log('[YouTubePlayer] Buffering...')}
+                    onBufferEnd={() => console.log('[YouTubePlayer] Buffer ended, playing')}
                     progressInterval={500}
                     volume={volume}
                     muted={false}
@@ -176,6 +183,7 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
                                 iv_load_policy: 3,
                                 playsinline: 1,
                                 enablejsapi: 1,
+                                origin: typeof window !== 'undefined' ? window.location.origin : '',
                             },
                         },
                     }}
