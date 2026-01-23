@@ -94,6 +94,13 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
         const handleReady = useCallback(() => {
             console.log('[YouTubePlayer] Player ready! isPlaying from store:', isPlaying);
             setIsReady(true);
+
+            // Debug volume/mute state
+            const internalPlayer = playerRef.current?.getInternalPlayer();
+            if (internalPlayer) {
+                console.log('[YouTubePlayer] Ready state - Muted:', internalPlayer.isMuted(), 'Volume:', internalPlayer.getVolume());
+            }
+
             // If the store says we should be playing, start now
             if (isPlaying) {
                 console.log('[YouTubePlayer] Starting playback now that player is ready');
@@ -119,6 +126,21 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
 
         const handlePlay = useCallback(() => {
             console.log('[YouTubePlayer] onPlay triggered');
+
+            // Force unmute and set volume to ensure audio
+            const internalPlayer = playerRef.current?.getInternalPlayer();
+            if (internalPlayer) {
+                console.log('[YouTubePlayer] onPlay check - Muted:', internalPlayer.isMuted(), 'Volume:', internalPlayer.getVolume());
+                if (internalPlayer.isMuted()) {
+                    console.log('[YouTubePlayer] Force unmuting...');
+                    internalPlayer.unMute();
+                }
+                if (internalPlayer.getVolume() === 0) {
+                    console.log('[YouTubePlayer] Force setting volume to 100...');
+                    internalPlayer.setVolume(100);
+                }
+            }
+
             if (isHost || collaborativeControls) {
                 // If we are already playing in store, don't spam
                 if (!isPlaying) {
@@ -185,6 +207,12 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
             });
         }, [videoUrl, isPlaying, internalPlaying, isReady, volume, currentSong]);
 
+        // Mount/Unmount logging
+        useEffect(() => {
+            console.log('[YouTubePlayer] Component MOUNTED');
+            return () => console.log('[YouTubePlayer] Component UNMOUNTED');
+        }, []);
+
         // Don't render if no song
         if (!currentSong) {
             console.log('[YouTubePlayer] No currentSong, not rendering player');
@@ -194,18 +222,20 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
         console.log('[YouTubePlayer] Rendering player for:', currentSong.videoId);
 
         return (
-            // Player container - positioned on-screen but visually hidden (1x1 pixel)
-            // We keep it "visible" to the browser but invisible to the user
+            // Player container - forcing it to be "visible" to the browser
+            // by making it fullscreen but behind everything and transparent.
+            // This prevents browser background throttling which kills audio/init.
             <div
                 className={`fixed ${className}`}
                 style={{
-                    bottom: 0,
-                    right: 0,
-                    width: 1,
-                    height: 1,
-                    opacity: 0.001,
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    width: '100vw',
+                    height: '100vh',
+                    opacity: 0.01,
                     pointerEvents: 'none',
-                    zIndex: -1,
+                    zIndex: -9999,
                     overflow: 'hidden',
                 }}
             >
@@ -222,7 +252,7 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
                     onEnded={handleEnded}
                     onProgress={handleProgress}
                     onDuration={handleDuration}
-                    onError={handleError}
+                    onError={(e: any) => console.error('[YouTubePlayer] PLAYER ERROR:', e)}
                     onBuffer={() => console.log('[YouTubePlayer] Buffering...')}
                     onBufferEnd={() => console.log('[YouTubePlayer] Buffer ended')}
                     progressInterval={500}

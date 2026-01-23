@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from './GlassCard';
 import { useSocket } from '@/hooks/useSocket';
@@ -12,11 +13,21 @@ interface LandingPortalProps {
 }
 
 export function LandingPortal({ onEnter }: LandingPortalProps) {
+    const router = useRouter();
     const [mode, setMode] = useState<'initial' | 'create' | 'join'>('initial');
     const [userName, setUserName] = useState('');
     const [roomId, setRoomId] = useState('');
     const { createRoom, joinRoom } = useSocket();
-    const { isJoining, error } = useRoomStore();
+    const { isJoining, error, roomId: storeRoomId, isConnected } = useRoomStore();
+
+    // Redirect to room page when successfully joined
+    useEffect(() => {
+        console.log('[LandingPortal] Check redirect:', { isConnected, storeRoomId });
+        if (isConnected && storeRoomId) {
+            console.log('[LandingPortal] Redirecting to:', `/room/${storeRoomId}`);
+            router.push(`/room/${storeRoomId}`);
+        }
+    }, [isConnected, storeRoomId, router]);
 
     const handleCreate = () => {
         if (!userName.trim()) return;
