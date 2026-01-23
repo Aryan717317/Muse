@@ -16,7 +16,7 @@ import { Users, Lock, Unlock, Copy, Check, LogOut, Disc } from 'lucide-react';
 import { useState } from 'react';
 import { PresenceBar } from '@/components/PresenceBar';
 import { BottomControls } from '@/components/Player/BottomControls';
-import { AudioUnlockOverlay } from '@/components/AudioUnlockOverlay';
+import LoadingScreen from '@/components/LoadingScreen';
 import { SearchModal } from '@/components/SearchModal';
 import { BigPlayer } from '@/components/Player/BigPlayer';
 import { DynamicBackground } from '@/components/Player/DynamicBackground';
@@ -33,6 +33,7 @@ export default function Home() {
     isConnected
   } = useRoomStore();
 
+  const [isLoading, setIsLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
   const handleCopyRoomId = () => {
@@ -55,6 +56,10 @@ export default function Home() {
 
   return (
     <>
+      <AnimatePresence>
+        {isLoading && <LoadingScreen onComplete={() => setIsLoading(false)} />}
+      </AnimatePresence>
+
       <RouteAnnouncer isVisible={isJoining} status="entering" />
 
       {/* Audio Engine - Component positions itself offscreen */}
@@ -62,7 +67,7 @@ export default function Home() {
 
       <DynamicBackground />
       <GrainOverlay />
-      <AudioUnlockOverlay />
+      {/* AudioUnlockOverlay removed - replaced by LoadingScreen */}
       <SearchModal />
 
       <motion.div
