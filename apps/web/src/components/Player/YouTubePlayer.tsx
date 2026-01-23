@@ -239,43 +239,17 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
                     background: 'black',
                 }}
             >
-                <ReactPlayer
-                    ref={playerRef}
-                    url={videoUrl}
-                    playing={internalPlaying}
-                    controls={true} // Enabled native controls
+                {/* RAW IFRAME DEBUGGING */}
+                {/* Replacing ReactPlayer to rule out library issues */}
+                <iframe
                     width="100%"
                     height="100%"
-                    onReady={handleReady}
-                    onPlay={handlePlay}
-                    onPause={handlePause}
-                    onEnded={handleEnded}
-                    onProgress={handleProgress}
-                    onDuration={handleDuration}
-                    onError={(e: any) => console.error('[YouTubePlayer] PLAYER ERROR:', e)}
-                    onBuffer={() => console.log('[YouTubePlayer] Buffering...')}
-                    onBufferEnd={() => console.log('[YouTubePlayer] Buffer ended')}
-                    progressInterval={500}
-                    volume={volume}
-                    muted={false}
-                    playsinline={true}
-                    pip={false}
-                    config={{
-                        youtube: {
-                            playerVars: {
-                                modestbranding: 1,
-                                rel: 0,
-                                showinfo: 1,
-                                controls: 1, // Show controls
-                                disablekb: 0,
-                                fs: 0,
-                                iv_load_policy: 3,
-                                playsinline: 1,
-                                enablejsapi: 1,
-                                origin: typeof window !== 'undefined' ? window.location.origin : '',
-                            },
-                        },
-                    }}
+                    src={`https://www.youtube.com/embed/${currentSong.videoId}?autoplay=1&controls=1&enablejsapi=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
+                    title="YouTube video player"
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    style={{ pointerEvents: 'auto' }}
                 />
             </div>
         );
