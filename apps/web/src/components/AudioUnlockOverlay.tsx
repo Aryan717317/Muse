@@ -34,11 +34,14 @@ export function AudioUnlockOverlay() {
             console.log('[AudioUnlock] Dummy audio failed, but click event should unlock:', e);
         });
 
-        setIsVisible(false);
-        setHasUnlocked(true);
+        // Slight delay to ensure browser acknowledges the interaction/audio resume
+        setTimeout(() => {
+            setIsVisible(false);
+            setHasUnlocked(true);
 
-        // Dispatch custom event for player to know audio is unlocked
-        window.dispatchEvent(new CustomEvent('audio:unlocked'));
+            // Dispatch custom event for player to know audio is unlocked
+            window.dispatchEvent(new CustomEvent('audio:unlocked'));
+        }, 100);
     }, []);
 
     return (
