@@ -1,132 +1,144 @@
 import express from 'express';
 import { createServer } from 'http';
-import { Server } from 'socket.io';
+import { Server, Socket } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { roomHandler } from './handlers/roomHandler';
-import { playbackHandler } from './handlers/playbackHandler';
-import { redisHealthCheck, isRedisEnabled, redis } from './utils/redisClient';
+import { v4 as uuidv4 } from 'uuid';
 
 dotenv.config();
 
 const app = express();
-const httpServer = createServer(app);
+app.use(cors());
 
+const httpServer = createServer(app);
 const io = new Server(httpServer, {
     cors: {
-        origin: process.env.CLIENT_URL || 'http://localhost:3000',
-        methods: ['GET', 'POST'],
-    },
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
 });
-
-app.use(cors());
-app.use(express.json());
-
-// Health check endpoint
-app.get('/health', async (req, res) => {
-    const redisStatus = await redisHealthCheck();
-    res.json({
-        status: 'ok',
-        timestamp: Date.now(),
-        redis: isRedisEnabled() ? (redisStatus ? 'connected' : 'error') : 'disabled'
-    });
-});
-
-// Room state storage (in-memory for now, can be replaced with Redis)
-export const rooms = new Map<string, RoomState>();
-
-interface RoomState {
-    roomId: string;
-    hostId: string;
-    currentSong: Song | null;
-    queue: Song[];
-    isPlaying: boolean;
-    seekTime: number;
-    collaborativeControls: boolean;
-    participants: Map<string, Participant>;
-}
-
-interface Song {
-    id: string;
-    videoId: string;
-    title: string;
-    artist: string;
-    thumbnail: string;
-    duration: number;
-    addedBy: string;
-}
-
-interface Participant {
-    id: string;
-    name: string;
-    isHost: boolean;
-    joinedAt: number;
-}
-
-io.on('connection', (socket) => {
-    console.log(`Client connected: ${socket.id}`);
-
-    // Register handlers
-    roomHandler(io, socket, rooms);
-    playbackHandler(io, socket, rooms);
-
-    socket.on('disconnect', () => {
-        console.log(`Client disconnected: ${socket.id}`);
-
-        // Find and remove from any room
-        rooms.forEach((room, roomId) => {
-            if (room.participants.has(socket.id)) {
-                room.participants.delete(socket.id);
-
-                // Notify other participants
-                socket.to(roomId).emit('room:participant_left', { participantId: socket.id });
-
-                // If host left, assign new host or delete room
-                if (room.hostId === socket.id) {
-                    const remainingParticipants = Array.from(room.participants.values());
-                    if (remainingParticipants.length > 0) {
-                        room.hostId = remainingParticipants[0].id;
-                        remainingParticipants[0].isHost = true;
-                        io.to(roomId).emit('room:host_changed', { newHostId: room.hostId });
-                    } else {
-                        rooms.delete(roomId);
-                    }
-                }
-            }
-        });
-    });
-});
-
-// Health check ping every 30 seconds to keep connection alive
-setInterval(() => {
-    io.emit('ping');
-}, 30000);
 
 const PORT = process.env.PORT || 3001;
 
-const server = httpServer.listen(PORT, () => {
-    console.log(`🎵 Muse Server running on port ${PORT}`);
-    if (isRedisEnabled()) {
-        console.log('🔌 Redis enabled');
-    } else {
-        console.log('⚠️  Redis disabled (In-Memory Fallback)');
-    }
-});
+// --- Types ---
+interface RoomState {
+    id: string;
+    hostId: string;
+    isPlaying: boolean;
+    currentTrack: string | null;
+    seekTime: number;
+    lastUpdated: number;
+    participants: string[];
+}
 
-// Graceful Shutdown
-const gracefulShutdown = async () => {
-    console.log('🛑 SIGTERM received. Shutting down gracefully...');
+// --- In-Memory State (Map) ---
+const rooms = new Map<string, RoomState>();
 
-    server.close(() => {
-        console.log('HTTP server closed.');
+io.on('connection', (socket: Socket) => {
+    console.log('User connected:', socket.id);
+
+    // --- Handshake / Room Management ---
+
+    socket.on('room:create', (callback) => {
+        const roomId = uuidv4().slice(0, 6).toUpperCase(); // Short ID
+        const newRoom: RoomState = {
+            id: roomId,
+            hostId: socket.id,
+            isPlaying: false,
+            currentTrack: null,
+            seekTime: 0,
+            lastUpdated: Date.now(),
+            participants: [socket.id]
+        };
+        rooms.set(roomId, newRoom);
+
+        socket.join(roomId);
+        callback({ roomId, isHost: true });
+        console.log(`Room created: ${roomId} by ${socket.id}`);
     });
 
-    if (redis) {
-        // Redis client connection close if needed
-    }
+    socket.on('room:join', (roomId: string, callback) => {
+        const room = rooms.get(roomId);
+        if (!room) {
+            if (callback) callback({ error: 'Room not found' });
+            return;
+        }
 
-    process.exit(0);
-};
+        if (!room.participants.includes(socket.id)) {
+            room.participants.push(socket.id);
+        }
+        socket.join(roomId);
 
-process.on('SIGTERM', gracefulShutdown);
-process.on('SIGINT', gracefulShutdown);
+        // Return current state for sync
+        if (callback) {
+            callback({
+                success: true,
+                isHost: room.hostId === socket.id,
+                state: room
+            });
+        }
+
+        // Notify others
+        socket.to(roomId).emit('room:participant_joined', { userId: socket.id });
+        console.log(`User ${socket.id} joined room ${roomId}`);
+    });
+
+    // --- Playback Sync (Basic) ---
+
+    socket.on('player:update', (data: { roomId: string, isPlaying: boolean, seekTime: number }) => {
+        const room = rooms.get(data.roomId);
+        if (!room) return;
+
+        // Only host can control in MVP to prevent ping-pong update loops
+        if (room.hostId !== socket.id) return; 
+
+        // Throttle updates: avoid broadcasting more than once every 100ms
+        // If state changed (play/pause), we update immediately
+        const now = Date.now();
+        if (room.isPlaying === data.isPlaying && (now - room.lastUpdated < 100)) {
+            return;
+        }
+
+        room.isPlaying = data.isPlaying;
+        room.seekTime = data.seekTime;
+        room.lastUpdated = now;
+
+        // Broadcast to everyone else in the room
+        socket.to(data.roomId).emit('player:sync', {
+            isPlaying: room.isPlaying,
+            seekTime: room.seekTime,
+            lastUpdated: room.lastUpdated
+        });
+    });
+
+    socket.on('disconnecting', () => {
+        // Clean up rooms the user was in to prevent memory leaks and infinite growth
+        for (const roomId of socket.rooms) {
+            if (roomId !== socket.id) {
+                const room = rooms.get(roomId);
+                if (room) {
+                    room.participants = room.participants.filter(id => id !== socket.id);
+                    if (room.participants.length === 0) {
+                        rooms.delete(roomId);
+                    } else if (room.hostId === socket.id) {
+                        // Reassign host to the next participant
+                        room.hostId = room.participants[0];
+                    }
+                    socket.to(roomId).emit('room:participant_left', { userId: socket.id });
+                }
+            }
+        }
+    });
+
+    socket.on('disconnect', () => {
+        console.log('User disconnected:', socket.id);
+    });
+});
+
+app.get('/health', (req, res) => {
+    res.send('Server is healthy');
+});
+
+httpServer.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});
