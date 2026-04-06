@@ -21,6 +21,42 @@ interface YouTubePlayerProps {
     onEnded?: () => void;
 }
 
+// Global reference to allow direct play calls for audio unlock
+let globalPlayerRef: any = null;
+let audioUnlocked = false;
+
+// Call this on first user interaction to unlock audio
+export function triggerAudioUnlock() {
+    if (audioUnlocked) return;
+    
+    console.log('[AudioUnlock] Attempting to unlock audio...');
+    if (globalPlayerRef) {
+        const internalPlayer = globalPlayerRef.getInternalPlayer?.();
+        if (internalPlayer) {
+            // These calls require user gesture context
+            if (internalPlayer.unMute) {
+                internalPlayer.unMute();
+                console.log('[AudioUnlock] Called unMute');
+            }
+            if (internalPlayer.setVolume) {
+                internalPlayer.setVolume(100);
+                console.log('[AudioUnlock] Set volume to 100');
+            }
+            // Try to play (might fail but unlocks audio context)
+            if (internalPlayer.playVideo) {
+                internalPlayer.playVideo();
+                console.log('[AudioUnlock] Called playVideo');
+            }
+            audioUnlocked = true;
+        }
+    }
+}
+
+// Reset unlock state (e.g., when song changes)
+export function resetAudioUnlock() {
+    audioUnlocked = false;
+}
+
 export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
     ({ className = '', onEnded }, ref) => {
         const playerRef = useRef<any>(null);
@@ -94,11 +130,18 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
         const handleReady = useCallback(() => {
             console.log('[YouTubePlayer] Player ready! isPlaying from store:', isPlaying);
             setIsReady(true);
+            
+            // Store global reference for audio unlock
+            globalPlayerRef = playerRef.current;
 
             // Debug volume/mute state
             const internalPlayer = playerRef.current?.getInternalPlayer();
             if (internalPlayer) {
-                console.log('[YouTubePlayer] Ready state - Muted:', internalPlayer.isMuted(), 'Volume:', internalPlayer.getVolume());
+                console.log('[YouTubePlayer] Ready state - Muted:', internalPlayer.isMuted?.(), 'Volume:', internalPlayer.getVolume?.());
+                
+                // Immediately try to unmute and set volume
+                if (internalPlayer.unMute) internalPlayer.unMute();
+                if (internalPlayer.setVolume) internalPlayer.setVolume(100);
             }
 
             // If the store says we should be playing, start now
@@ -283,8 +326,3 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
 );
 
 YouTubePlayer.displayName = 'YouTubePlayer';
-
-// Export dummy function for backward compatibility
-export function triggerAudioUnlock() {
-    console.log('[YouTubePlayer] triggerAudioUnlock called (no-op in new version)');
-}

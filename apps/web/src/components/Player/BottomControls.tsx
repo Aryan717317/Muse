@@ -1,10 +1,11 @@
 'use client';
 
-import { memo, useRef, useEffect, useState } from 'react';
+import { memo, useRef, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Pause, SkipBack, SkipForward, Volume2, ListMusic, Mic2, Disc, VolumeX } from 'lucide-react';
 import { useRoomStore } from '@/store/useRoomStore';
 import { useSocket } from '@/hooks/useSocket';
+import { triggerAudioUnlock } from './YouTubePlayer';
 
 export const BottomControls = memo(function BottomControls() {
     const { currentSong, isPlaying, isHost, collaborativeControls, volume, setVolume } = useRoomStore();
@@ -13,6 +14,20 @@ export const BottomControls = memo(function BottomControls() {
     const volumeTrackRef = useRef<HTMLDivElement>(null);
 
     const canControl = isHost || collaborativeControls;
+
+    // Handle play/pause with audio unlock
+    const handlePlayPause = useCallback(() => {
+        if (!canControl) return;
+        
+        // CRITICAL: Unlock audio on user gesture
+        triggerAudioUnlock();
+        
+        if (isPlaying) {
+            pause();
+        } else {
+            play();
+        }
+    }, [canControl, isPlaying, play, pause]);
 
     // Handle Volume Drag
     useEffect(() => {
@@ -65,7 +80,7 @@ export const BottomControls = memo(function BottomControls() {
                     </button>
 
                     <button
-                        onClick={canControl ? (isPlaying ? pause : play) : undefined}
+                        onClick={handlePlayPause}
                         className={`flex h-12 w-12 items-center justify-center rounded-full bg-white text-black transition-transform hover:scale-105 active:scale-95 ${!canControl && 'opacity-50 cursor-not-allowed'}`}
                     >
                         {isPlaying ? (
