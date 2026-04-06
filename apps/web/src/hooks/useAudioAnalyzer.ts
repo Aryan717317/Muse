@@ -8,9 +8,8 @@ interface AudioAnalyzerOptions {
     mode?: 'simulation' | 'microphone';
 }
 
-export function useAudioAnalyzer(isPlaying: boolean, options: AudioAnalyzerOptions = {}) {
+export function useAudioAnalyzer(isPlaying: boolean, options: AudioAnalyzerOptions = {}, onUpdate?: (data: Uint8Array) => void) {
     const { fftSize = 64, smoothingTimeConstant = 0.8, mode = 'simulation' } = options;
-    const [frequencyData, setFrequencyData] = useState<Uint8Array>(new Uint8Array(fftSize / 2));
     const audioContextRef = useRef<AudioContext | null>(null);
     const analyserRef = useRef<AnalyserNode | null>(null);
     const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
@@ -21,43 +20,30 @@ export function useAudioAnalyzer(isPlaying: boolean, options: AudioAnalyzerOptio
     useEffect(() => {
         if (!isPlaying) {
             if (rafRef.current) cancelAnimationFrame(rafRef.current);
-            setFrequencyData(new Uint8Array(fftSize / 2).fill(0));
+            if (onUpdate) onUpdate(new Uint8Array(fftSize / 2).fill(0));
             return;
         }
 
-        let lastUpdate = 0;
         const animate = () => {
             const now = Date.now();
-            // Throttle to ~20fps (50ms) to prevent React state update lag
-            if (now - lastUpdate >= 50) {
-                if (mode === 'simulation') {
-                    // Synthetic Generator (Simulates FFT physics)
-                    const data = new Uint8Array(fftSize / 2);
-                    const time = (now - startTimeRef.current) / 1000;
+            
+            if (mode === 'simulation') {
+                // Synthetic Generator (Simulates FFT physics)
+                const data = new Uint8Array(fftSize / 2);
+                const time = (now - startTimeRef.current) / 1000;
 
-                    for (let i = 0; i < data.length; i++) {
-                        const x = i / data.length;
-
-                        // Bass (Lower frequencies) - High energy, slower pulses
-                        const bass = Math.sin(time * 2 + i * 0.5) * 100 * (1 - x);
-
-                        // Mids/Highs - Faster, lower amplitude
-                        const mids = Math.cos(time * 5 + i * 2) * 50 * Math.sin(x * Math.PI);
-
-                        // Noise/Jitter
-                        const noise = Math.random() * 30;
-
-                        // Combine and clamp
-                        const value = Math.max(0, Math.min(255, 50 + bass + mids + noise));
-                        data[i] = value;
-                    }
-                    setFrequencyData(data);
-                } else if (mode === 'microphone' && analyserRef.current) {
-                    const data = new Uint8Array(analyserRef.current.frequencyBinCount);
-                    analyserRef.current.getByteFrequencyData(data);
-                    setFrequencyData(data);
+                for (let i = 0; i < data.length; i++) {
+                    const x = i / data.length;
+                    const bass = Math.sin(time * 2 + i * 0.5) * 100 * (1 - x);
+                    const mids = Math.cos(time * 5 + i * 2) * 50 * Math.sin(x * Math.PI);
+                    const noise = Math.random() * 30;
+                    data[i] = Math.max(0, Math.min(255, 50 + bass + mids + noise));
                 }
-                lastUpdate = now;
+                if (onUpdate) onUpdate(data);
+            } else if (mode === 'microphone' && analyserRef.current) {
+                const data = new Uint8Array(analyserRef.current.frequencyBinCount);
+                analyserRef.current.getByteFrequencyData(data);
+                if (onUpdate) onUpdate(data);
             }
 
             rafRef.current = requestAnimationFrame(animate);
@@ -74,7 +60,7 @@ export function useAudioAnalyzer(isPlaying: boolean, options: AudioAnalyzerOptio
                     analyser.smoothingTimeConstant = smoothingTimeConstant;
 
                     const source = ctx.createMediaStreamSource(stream);
-                    source.connect(analyser); // Do not connect to destination (feedback loop)
+                    source.connect(analyser);
 
                     audioContextRef.current = ctx;
                     analyserRef.current = analyser;
@@ -82,8 +68,7 @@ export function useAudioAnalyzer(isPlaying: boolean, options: AudioAnalyzerOptio
 
                     animate();
                 } catch (err) {
-                    console.error('Mic access denied, falling back to simulation', err);
-                    // Fallback could go here used simulation logic
+                    console.error('Mic access denied', err);
                 }
             };
             initMic();
@@ -96,7 +81,5 @@ export function useAudioAnalyzer(isPlaying: boolean, options: AudioAnalyzerOptio
             sourceRef.current?.disconnect();
             audioContextRef.current?.close();
         };
-    }, [isPlaying, fftSize, mode, smoothingTimeConstant]);
-
-    return frequencyData;
+    }, [isPlaying, fftSize, mode, smoothingTimeConstant, onUpdate]);
 }
