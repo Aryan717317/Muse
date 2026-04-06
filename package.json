@@ -8,6 +8,7 @@
     ],
     "scripts": {
         "dev": "concurrently \"npm run dev --workspace=apps/web\" \"npm run dev --workspace=apps/server\"",
+        "build:web": "npm run build --workspace=apps/web",
         "build": "npm run build --workspaces"
     },
     "devDependencies": {
