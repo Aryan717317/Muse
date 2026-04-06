@@ -17,6 +17,11 @@ interface Participant {
     joinedAt: number;
 }
 
+interface VoicePeer {
+    id: string;
+    name: string;
+}
+
 interface RoomState {
     // Connection state
     isConnected: boolean;
@@ -36,6 +41,11 @@ interface RoomState {
     isPlaying: boolean;
     seekTime: number;
 
+    // Voice chat state
+    voiceEnabled: boolean;
+    isMuted: boolean;
+    voicePeers: VoicePeer[];
+
     // Theme
     themeColor: string;
     setThemeColor: (color: string) => void;
@@ -52,6 +62,14 @@ interface RoomState {
     removeParticipant: (participantId: string) => void;
     setCollaborativeControls: (enabled: boolean) => void;
     reset: () => void;
+    
+    // Voice chat actions
+    setVoiceEnabled: (enabled: boolean) => void;
+    setMuted: (muted: boolean) => void;
+    addVoicePeer: (id: string, name: string) => void;
+    removeVoicePeer: (id: string) => void;
+    clearVoicePeers: () => void;
+    
     // UI State
     isSearchOpen: boolean;
     setSearchOpen: (open: boolean) => void;
@@ -72,6 +90,9 @@ const initialState = {
     queue: [],
     isPlaying: false,
     seekTime: 0,
+    voiceEnabled: false,
+    isMuted: false,
+    voicePeers: [],
     themeColor: 'rgba(255, 255, 255, 0.15)', // Neutral default
     isSearchOpen: false,
     volume: 1, // Default 100%
@@ -108,6 +129,23 @@ export const useRoomStore = create<RoomState>((set) => ({
     setCollaborativeControls: (enabled) => set({ collaborativeControls: enabled }),
 
     setThemeColor: (color) => set({ themeColor: color }),
+
+    // Voice chat actions
+    setVoiceEnabled: (enabled) => set({ voiceEnabled: enabled }),
+    
+    setMuted: (muted) => set({ isMuted: muted }),
+    
+    addVoicePeer: (id, name) => set((state) => ({
+        voicePeers: state.voicePeers.some(p => p.id === id) 
+            ? state.voicePeers 
+            : [...state.voicePeers, { id, name }],
+    })),
+    
+    removeVoicePeer: (id) => set((state) => ({
+        voicePeers: state.voicePeers.filter(p => p.id !== id),
+    })),
+    
+    clearVoicePeers: () => set({ voicePeers: [] }),
 
     reset: () => set(initialState),
 }));

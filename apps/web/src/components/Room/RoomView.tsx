@@ -17,6 +17,7 @@ import { SearchModal } from '@/components/SearchModal';
 import { BigPlayer } from '@/components/Player/BigPlayer';
 import { DynamicBackground } from '@/components/Player/DynamicBackground';
 import { GrainOverlay } from '@/components/GrainOverlay';
+import { VoiceControls } from '@/components/VoiceControls';
 import { useRouter } from 'next/navigation';
 
 export function RoomView() {
@@ -89,6 +90,9 @@ export function RoomView() {
                     </div>
 
                     <div className="flex items-center gap-4">
+                        {/* Voice Controls */}
+                        <VoiceControls />
+
                         {/* Participants */}
                         <PresenceBar />
 

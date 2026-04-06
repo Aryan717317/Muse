@@ -1,5 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import { nanoid } from 'nanoid';
+import { getCurrentPlaybackTime } from '../index';
 
 interface Song {
     id: string;
@@ -23,10 +24,18 @@ export function playbackHandler(io: Server, socket: Socket, rooms: Map<string, a
         const isHost = socket.id === room.hostId;
         if (!isHost && !room.collaborativeControls) return;
 
+        // Perfect sync: Update server state
         room.isPlaying = true;
+        room.lastActionTime = Date.now();
+        // Keep timestampAtLastAction (current position)
+        
+        const currentSeconds = getCurrentPlaybackTime(room);
+        
         io.to(roomId).emit('playback:state', {
             isPlaying: true,
-            seekTime: room.seekTime
+            seekTime: room.seekTime,
+            currentSeconds,              // Calculated position
+            serverTime: Date.now()       // For latency compensation
         });
     });
 
@@ -40,10 +49,16 @@ export function playbackHandler(io: Server, socket: Socket, rooms: Map<string, a
         const isHost = socket.id === room.hostId;
         if (!isHost && !room.collaborativeControls) return;
 
+        // Perfect sync: Update position before pausing
+        room.timestampAtLastAction = getCurrentPlaybackTime(room);
         room.isPlaying = false;
+        room.lastActionTime = Date.now();
+
         io.to(roomId).emit('playback:state', {
             isPlaying: false,
-            seekTime: room.seekTime
+            seekTime: room.seekTime,
+            currentSeconds: room.timestampAtLastAction,
+            serverTime: Date.now()
         });
     });
 
@@ -57,10 +72,16 @@ export function playbackHandler(io: Server, socket: Socket, rooms: Map<string, a
         const isHost = socket.id === room.hostId;
         if (!isHost && !room.collaborativeControls) return;
 
+        // Perfect sync: Update position and timestamp
         room.seekTime = time;
+        room.timestampAtLastAction = time;
+        room.lastActionTime = Date.now();
+
         io.to(roomId).emit('playback:state', {
             isPlaying: room.isPlaying,
-            seekTime: time
+            seekTime: time,
+            currentSeconds: time,
+            serverTime: Date.now()
         });
     });
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Loader2, X, Plus, Play, CornerDownLeft, Command } from 'lucide-react';
 import { useSocket } from '@/hooks/useSocket';
@@ -14,13 +14,54 @@ interface SearchResult {
     duration: number;
 }
 
-function formatDuration(seconds: number): string {
+const formatDuration = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
-}
+};
 
-export function SearchModal() {
+// Memoized search result item
+const SearchResultItem = memo(function SearchResultItem({
+    result,
+    isAdded,
+    onAdd,
+}: {
+    result: SearchResult;
+    isAdded: boolean;
+    onAdd: (result: SearchResult) => void;
+}) {
+    const handleClick = useCallback(() => onAdd(result), [result, onAdd]);
+    
+    return (
+        <motion.button
+            layout
+            onClick={handleClick}
+            className="group w-full flex items-center gap-4 rounded-xl p-2 text-left transition-colors hover:bg-white/5 active:bg-white/10"
+        >
+            <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg">
+                <img src={result.thumbnail} alt="" className="h-full w-full object-cover" loading="lazy" />
+            </div>
+            <div className="flex-1 min-w-0">
+                <h4 className="truncate font-medium text-white">{result.title}</h4>
+                <p className="truncate text-sm text-white/50">{result.channelTitle}</p>
+            </div>
+            <div className="flex items-center gap-3 pr-2">
+                <span className="text-xs text-white/30">{formatDuration(result.duration)}</span>
+                {isAdded ? (
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-white">
+                        ✓
+                    </span>
+                ) : (
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white opacity-0 group-hover:opacity-100 group-hover:bg-cyan-500 group-hover:border-cyan-500 group-hover:text-black transition-all">
+                        <Plus className="h-4 w-4" />
+                    </span>
+                )}
+            </div>
+        </motion.button>
+    );
+});
+
+export const SearchModal = memo(function SearchModal() {
     const { isSearchOpen, setSearchOpen } = useRoomStore();
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<SearchResult[]>([]);
@@ -177,32 +218,12 @@ export function SearchModal() {
 
                             <div className="space-y-1">
                                 {results.map((result) => (
-                                    <motion.button
+                                    <SearchResultItem
                                         key={result.videoId}
-                                        layout
-                                        onClick={() => handleAddToQueue(result)}
-                                        className="group w-full flex items-center gap-4 rounded-xl p-2 text-left transition-colors hover:bg-white/5 active:bg-white/10"
-                                    >
-                                        <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg">
-                                            <img src={result.thumbnail} alt="" className="h-full w-full object-cover" />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <h4 className="truncate font-medium text-white">{result.title}</h4>
-                                            <p className="truncate text-sm text-white/50">{result.channelTitle}</p>
-                                        </div>
-                                        <div className="flex items-center gap-3 pr-2">
-                                            <span className="text-xs text-white/30">{formatDuration(result.duration)}</span>
-                                            {addedIds.has(result.videoId) ? (
-                                                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-white">
-                                                    ✓
-                                                </span>
-                                            ) : (
-                                                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white opacity-0 group-hover:opacity-100 group-hover:bg-cyan-500 group-hover:border-cyan-500 group-hover:text-black transition-all">
-                                                    <Plus className="h-4 w-4" />
-                                                </span>
-                                            )}
-                                        </div>
-                                    </motion.button>
+                                        result={result}
+                                        isAdded={addedIds.has(result.videoId)}
+                                        onAdd={handleAddToQueue}
+                                    />
                                 ))}
                             </div>
                         </div>
@@ -220,4 +241,4 @@ export function SearchModal() {
             )}
         </AnimatePresence>
     );
-}
+});

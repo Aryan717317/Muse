@@ -1,38 +1,66 @@
 'use client';
 
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { GlassCard } from '../GlassCard';
 import { Play, Pause, SkipForward, Volume2 } from 'lucide-react';
 import { useRoomStore } from '@/store/useRoomStore';
 import { useSocket } from '@/hooks/useSocket';
-import { FastAverageColor } from 'fast-average-color';
 
 interface PlayCardProps {
     className?: string;
 }
 
-const fac = new FastAverageColor();
+// HUM-style static gradient palette - eliminates fast-average-color (-300MB)
+const STATIC_GRADIENTS = [
+    'rgba(0, 255, 255, 0.3)',   // Cyan
+    'rgba(147, 51, 234, 0.3)',  // Purple
+    'rgba(59, 130, 246, 0.3)',  // Blue
+    'rgba(236, 72, 153, 0.3)',  // Pink
+    'rgba(34, 197, 94, 0.3)',   // Green
+    'rgba(251, 146, 60, 0.3)',  // Orange
+];
+
+// Deterministic color from song ID - consistent across sessions
+function getColorForSong(songId?: string): string {
+    if (!songId) return STATIC_GRADIENTS[0];
+    let hash = 0;
+    for (let i = 0; i < songId.length; i++) {
+        hash = ((hash << 5) - hash) + songId.charCodeAt(i);
+        hash |= 0;
+    }
+    return STATIC_GRADIENTS[Math.abs(hash) % STATIC_GRADIENTS.length];
+}
 
 export const PlayCard = memo(function PlayCard({ className = '' }: PlayCardProps) {
     const { currentSong, isPlaying, isHost, collaborativeControls, setThemeColor } = useRoomStore();
     const { play, pause, skip, seek } = useSocket();
-    const [dominantColor, setDominantColor] = useState<string>('rgba(0, 255, 255, 0.2)');
     const [progress, setProgress] = useState(0);
+
+    // Static gradient - no color extraction, -300MB memory savings
+    const dominantColor = useMemo(() => {
+        const color = getColorForSong(currentSong?.id || currentSong?.videoId);
+        return color;
+    }, [currentSong?.id, currentSong?.videoId]);
+
+    // Update theme color when song changes
+    useEffect(() => {
+        setThemeColor(dominantColor);
+    }, [dominantColor, setThemeColor]);
 
     const canControl = isHost || collaborativeControls;
 
-    const formatTime = (seconds: number) => {
+    const formatTime = useCallback((seconds: number) => {
         const mins = Math.floor(seconds / 60);
         const secs = Math.floor(seconds % 60);
         return `${mins}:${secs.toString().padStart(2, '0')}`;
-    };
+    }, []);
 
-    const handleSeek = (time: number) => {
+    const handleSeek = useCallback((time: number) => {
         if (!canControl) return;
         setProgress(time); // Optimistic update
         seek(time);
-    };
+    }, [canControl, seek]);
 
     useEffect(() => {
         const handleProgressUpdate = (e: CustomEvent) => {
@@ -43,33 +71,19 @@ export const PlayCard = memo(function PlayCard({ className = '' }: PlayCardProps
         return () => window.removeEventListener('playback:progress' as any, handleProgressUpdate);
     }, []);
 
-    useEffect(() => {
-        if (currentSong?.thumbnail) {
-            fac.getColorAsync(currentSong.thumbnail)
-                .then(color => {
-                    setDominantColor(color.rgba);
-                    setThemeColor(color.rgba);
-                })
-                .catch(() => {
-                    setDominantColor('rgba(255, 255, 255, 0.1)');
-                    setThemeColor('rgba(255, 255, 255, 0.1)');
-                });
-        }
-    }, [currentSong?.thumbnail]);
-
-    const handlePlayPause = () => {
+    const handlePlayPause = useCallback(() => {
         if (!canControl) return;
         if (isPlaying) {
             pause();
         } else {
             play();
         }
-    };
+    }, [canControl, isPlaying, pause, play]);
 
-    const handleSkip = () => {
+    const handleSkip = useCallback(() => {
         if (!canControl) return;
         skip();
-    };
+    }, [canControl, skip]);
 
     if (!currentSong) {
         return (

@@ -45,6 +45,13 @@ export interface ClientToServerEvents {
   'queue:skip': () => void;
   
   'controls:toggle': (data: { enabled: boolean }) => void;
+  
+  // Voice chat events (WebRTC signaling)
+  'voice:enable': () => void;
+  'voice:disable': () => void;
+  'voice:offer': (data: { targetId: string; offer: RTCSessionDescriptionInit }) => void;
+  'voice:answer': (data: { targetId: string; answer: RTCSessionDescriptionInit }) => void;
+  'voice:ice-candidate': (data: { targetId: string; candidate: RTCIceCandidateInit }) => void;
 }
 
 // Server -> Client Events
@@ -55,13 +62,26 @@ export interface ServerToClientEvents {
   'room:participant_joined': (data: { participant: Participant }) => void;
   'room:participant_left': (data: { participantId: string }) => void;
   
-  'playback:state': (data: { isPlaying: boolean; seekTime: number }) => void;
+  'playback:state': (data: { 
+    isPlaying: boolean; 
+    seekTime: number;
+    currentSeconds?: number;  // Perfect sync: Server-calculated position
+    serverTime?: number;      // For latency compensation
+  }) => void;
   'playback:sync_request': (data: { hostTime: number; timestamp: number }) => void;
   'playback:song_changed': (data: { song: Song | null }) => void;
   
   'queue:updated': (data: { queue: Song[] }) => void;
   
   'controls:updated': (data: { collaborativeControls: boolean }) => void;
+  
+  // Voice chat events (WebRTC signaling relay)
+  'voice:peer_enabled': (data: { peerId: string; peerName: string }) => void;
+  'voice:peer_disabled': (data: { peerId: string }) => void;
+  'voice:offer': (data: { fromId: string; offer: RTCSessionDescriptionInit }) => void;
+  'voice:answer': (data: { fromId: string; answer: RTCSessionDescriptionInit }) => void;
+  'voice:ice-candidate': (data: { fromId: string; candidate: RTCIceCandidateInit }) => void;
+  'voice:peers': (data: { peers: Array<{ id: string; name: string }> }) => void;
 }
 
 // Inter-Server Events (for scaling)

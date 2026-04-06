@@ -1,5 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import { nanoid } from 'nanoid';
+import { getCurrentPlaybackTime } from '../index';
 
 export function roomHandler(io: Server, socket: Socket, rooms: Map<string, any>) {
     // Create a new room
@@ -22,6 +23,9 @@ export function roomHandler(io: Server, socket: Socket, rooms: Map<string, any>)
             seekTime: 0,
             collaborativeControls: true,
             participants: new Map([[socket.id, participant]]),
+            // Initialize perfect sync fields
+            lastActionTime: Date.now(),
+            timestampAtLastAction: 0,
         };
 
         rooms.set(roomId, roomState);
@@ -36,6 +40,8 @@ export function roomHandler(io: Server, socket: Socket, rooms: Map<string, any>)
             roomState: {
                 ...roomState,
                 participants: [participant],
+                currentSeconds: 0,        // Room just created, start at 0
+                serverTime: Date.now(),
             },
         });
 
@@ -65,11 +71,16 @@ export function roomHandler(io: Server, socket: Socket, rooms: Map<string, any>)
         (socket as any).roomId = roomId;
         (socket as any).isHost = false;
 
+        // Perfect sync: Calculate current position for late joiner
+        const currentSeconds = getCurrentPlaybackTime(room);
+
         // Send current room state to the joining user
         socket.emit('room:joined', {
             roomState: {
                 ...room,
                 participants: Array.from(room.participants.values()),
+                currentSeconds,           // Calculated position RIGHT NOW
+                serverTime: Date.now(),   // For latency compensation
             },
         });
 

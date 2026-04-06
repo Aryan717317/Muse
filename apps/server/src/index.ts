@@ -5,6 +5,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { roomHandler } from './handlers/roomHandler';
 import { playbackHandler } from './handlers/playbackHandler';
+import { voiceHandler } from './handlers/voiceHandler';
 import { redisHealthCheck, isRedisEnabled, redis } from './utils/redisClient';
 
 dotenv.config();
@@ -44,6 +45,9 @@ interface RoomState {
     seekTime: number;
     collaborativeControls: boolean;
     participants: Map<string, Participant>;
+    // Perfect sync fields (HUM-style server-calculated position)
+    lastActionTime: number;        // Server timestamp when last action occurred
+    timestampAtLastAction: number; // Playback position (seconds) at that time
 }
 
 interface Song {
@@ -63,12 +67,26 @@ interface Participant {
     joinedAt: number;
 }
 
+/**
+ * Calculate current playback position based on server time
+ * (HUM-style server-authoritative sync)
+ */
+export function getCurrentPlaybackTime(state: RoomState): number {
+    if (!state.isPlaying) {
+        return state.timestampAtLastAction; // Paused = frozen at last position
+    }
+    // Playing = add elapsed time since last action
+    const elapsed = (Date.now() - state.lastActionTime) / 1000;
+    return state.timestampAtLastAction + elapsed;
+}
+
 io.on('connection', (socket) => {
     console.log(`Client connected: ${socket.id}`);
 
     // Register handlers
     roomHandler(io, socket, rooms);
     playbackHandler(io, socket, rooms);
+    voiceHandler(io, socket, rooms);
 
     socket.on('disconnect', () => {
         console.log(`Client disconnected: ${socket.id}`);
