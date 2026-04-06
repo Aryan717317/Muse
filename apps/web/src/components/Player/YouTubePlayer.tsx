@@ -223,26 +223,29 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(
 
         return (
             <div
-                className={`fixed ${className}`}
+                className={`absolute ${className}`}
                 style={{
-                    position: 'absolute',
+                    // HUM-style: 1px container, opacity-0, but NOT behind content
+                    position: 'fixed',
                     top: 0,
                     left: 0,
-                    width: '300px',
-                    height: '300px',
-                    opacity: 0.01, // Must be > 0 to count as "visible"
+                    width: '1px',
+                    height: '1px',
+                    opacity: 0,
                     pointerEvents: 'none',
-                    zIndex: -50, 
                     overflow: 'hidden',
+                    // IMPORTANT: Keep z-index positive so browser processes audio
+                    zIndex: 1,
                 }}
+                aria-hidden="true"
             >
                 <ReactPlayer
                     ref={playerRef}
                     url={videoUrl}
                     playing={internalPlaying}
                     controls={false}
-                    width="100%"
-                    height="100%"
+                    width="1px"
+                    height="1px"
                     onReady={handleReady}
                     onPlay={handlePlay}
                     onPause={handlePause}
