@@ -25,33 +25,39 @@ export function useAudioAnalyzer(isPlaying: boolean, options: AudioAnalyzerOptio
             return;
         }
 
+        let lastUpdate = 0;
         const animate = () => {
-            if (mode === 'simulation') {
-                // Synthetic Generator (Simulates FFT physics)
-                const data = new Uint8Array(fftSize / 2);
-                const time = (Date.now() - startTimeRef.current) / 1000;
+            const now = Date.now();
+            // Throttle to ~20fps (50ms) to prevent React state update lag
+            if (now - lastUpdate >= 50) {
+                if (mode === 'simulation') {
+                    // Synthetic Generator (Simulates FFT physics)
+                    const data = new Uint8Array(fftSize / 2);
+                    const time = (now - startTimeRef.current) / 1000;
 
-                for (let i = 0; i < data.length; i++) {
-                    const x = i / data.length;
+                    for (let i = 0; i < data.length; i++) {
+                        const x = i / data.length;
 
-                    // Bass (Lower frequencies) - High energy, slower pulses
-                    const bass = Math.sin(time * 2 + i * 0.5) * 100 * (1 - x);
+                        // Bass (Lower frequencies) - High energy, slower pulses
+                        const bass = Math.sin(time * 2 + i * 0.5) * 100 * (1 - x);
 
-                    // Mids/Highs - Faster, lower amplitude
-                    const mids = Math.cos(time * 5 + i * 2) * 50 * Math.sin(x * Math.PI);
+                        // Mids/Highs - Faster, lower amplitude
+                        const mids = Math.cos(time * 5 + i * 2) * 50 * Math.sin(x * Math.PI);
 
-                    // Noise/Jitter
-                    const noise = Math.random() * 30;
+                        // Noise/Jitter
+                        const noise = Math.random() * 30;
 
-                    // Combine and clamp
-                    const value = Math.max(0, Math.min(255, 50 + bass + mids + noise));
-                    data[i] = value;
+                        // Combine and clamp
+                        const value = Math.max(0, Math.min(255, 50 + bass + mids + noise));
+                        data[i] = value;
+                    }
+                    setFrequencyData(data);
+                } else if (mode === 'microphone' && analyserRef.current) {
+                    const data = new Uint8Array(analyserRef.current.frequencyBinCount);
+                    analyserRef.current.getByteFrequencyData(data);
+                    setFrequencyData(data);
                 }
-                setFrequencyData(data);
-            } else if (mode === 'microphone' && analyserRef.current) {
-                const data = new Uint8Array(analyserRef.current.frequencyBinCount);
-                analyserRef.current.getByteFrequencyData(data);
-                setFrequencyData(data);
+                lastUpdate = now;
             }
 
             rafRef.current = requestAnimationFrame(animate);
